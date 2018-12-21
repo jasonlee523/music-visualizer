@@ -1,0 +1,515 @@
+<script src=lib4.js></script>
+
+<body bgcolor=black text=white link=white alink=white vlink=white>
+<center>
+<canvas id='canvas1' width=400 height=400></canvas>
+</center>
+</body>
+
+<script id='my_vertex_shader' type='x-shader/x-vertex'>
+   attribute vec3 aPos; // VERTEX ATTRIBUTES: POSITION
+   attribute vec3 aNor; //                    NORMAL
+   attribute vec2 aUV ; //                    TEXTURE U,V
+
+   uniform mat4 uPPMat;     // PERSPECTIVE PROJECTION MATRIX
+   uniform mat4 uObjectMat; // OBJECT TRANSFORMATION MATRIX
+   uniform mat4 uNormalMat; // NORMAL TRANSFORMATION MATRIX
+
+   varying   vec3 vPos; // TRANSFORMED POSITION
+   varying   vec3 vNor; // TRANSFORMED NORMAL
+   varying   vec2 vUV ;
+
+   void main() {
+      gl_Position = uPPMat * uObjectMat * vec4(aPos, 1.);
+      vPos = aPos;
+      vNor = (vec4(aNor, 0.) * uNormalMat).xyz;
+      vUV  = aUV ;
+   }
+</script>
+
+<script id='my_fragment_shader' type='x-shader/x-fragment'>
+varying vec3  vPos;
+varying vec3  vNor;
+varying vec2  vUV ;
+uniform vec3  uRGB;
+uniform mat4 uMat[2];
+
+void main() {
+   vec3 normal = normalize(vNor);
+   vec3 lDir = normalize(vec3(1.,1.,1.));
+   float c = 0.1 + 0.9 * max(0.,
+             dot(normal, lDir));
+   vec3 color = uRGB * c;
+   gl_FragColor = vec4(sqrt(color), 1.0);
+}</script>
+
+<script id='instructions' type='text/html'><font color=#b0b0b0>
+<b>Description</b>
+<p>
+A guard robot scanning the room.
+</script>
+
+<script>
+var vs = my_vertex_shader.innerHTML,
+    fs = my_fragment_shader.innerHTML;
+    fs = fs.substring(1, fs.length);
+
+document.body.innerHTML = [''
+   ,'<center><font size=6 color=#b0b0b0>Robot Guard</center>'
+   ,'<TABLE cellspacing=0 cellpadding=0><TR>'
+   ,'<td width=50></td><td><font color=red size=5><div id=errorMessage>, nbsp;</div></font></td>'
+   ,'</TR><TR>'
+   ,'<table cellspacing=10>'
+   ,'<tr>'
+   ,'<td valign=top><font size=2 color=red><div id=errorMarker>, nbsp;</div></font></td>'
+   ,'<td valign=top>'
+   ,'<textArea id=textArea spellcheck=false '
+   ,'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"'
+   ,'></textArea>'
+   ,'</td><td valign=top>' + document.body.innerHTML + '</td>'
+   ,'<td valign=top><font size=5>' + instructions.innerHTML + '</td>'
+   ,'</tr></table>'
+   ,'</TR></TABLE>'
+   ].join('');
+
+var i, text = fs.split('\n'), cols = 0;
+for (i = 0 ; i < text.length ; i++)
+   cols = Math.max(cols, text[i].length);
+
+textArea.rows = text.length;
+textArea.cols = cols;
+textArea.value = fs;
+textArea.style.backgroundColor = '#202020';
+textArea.style.color = 'white';
+textArea.onkeyup = function() { canvas1.setShaders(vs, this.value); }
+
+var startTime = Date.now();
+
+//Web Audio Variables
+var context;
+var source, sourceJs;
+var analyser;
+var buffer;
+var url = 'http://localhost:8887/data/voyager.mp3'
+var array = new Array();
+
+try {
+	if(typeof webkitAudioContext === 'function' || 'webkitAudioContext' in window) {
+		context = new webkitAudioContext();
+	}
+	else {
+		context = new AudioContext();
+	}
+}
+catch(e) {
+	$('#info').text('Web Audio API is not supported in this browser');
+}
+
+// Web Audio
+var request = new XMLHttpRequest();
+request.open('GET', url, true);
+request.responseType = "arraybuffer";
+request.onload = function() {
+    context.decodeAudioData(
+        request.response,
+        function(buffer) {
+            if(!buffer) {
+                // Error decoding file data
+                return;
+            }
+            sourceJs = context.createScriptProcessor(2048, 1, 1);
+			sourceJs.buffer = buffer;
+			sourceJs.connect(context.destination);
+			analyser = context.createAnalyser();
+			analyser.smoothingTimeConstant = 0.6;
+			analyser.fftSize = 512;
+
+			source = context.createBufferSource();
+			source.buffer = buffer;
+			source.loop = true;
+
+			source.connect(analyser);
+			analyser.connect(sourceJs);
+			source.connect(context.destination);
+
+			sourceJs.onaudioprocess = function(e) {
+				array = new Uint8Array(analyser.frequencyBinCount);
+				analyser.getByteFrequencyData(array);
+				boost = 0;
+				for (var i = 0; i < array.length; i++) {
+		            boost += array[i];
+		        }
+		        boost = boost / array.length;
+            };
+
+            source.start(0);
+        },
+
+        function(error) {
+            // Decoding error
+        }
+    );
+};
+request.send();
+
+function cylinderVertex(u, v) {
+  let theta = 2 * Math.PI * u;
+  let c = Math.cos(theta);
+  let s = Math.sin(theta);
+  if(v == 0)
+    return [0, 0, -1, 0, 0, -1, u, v];
+  else if(v == 0.2)
+    return [c, s, -1, 0, 0, -1, u, v];
+  else if(v == 0.4)
+    return [c, s, -1, c, s, 0, u, v];
+  else if(v == 0.6)
+    return [c, s, 1, c, s, 0, u, v];
+  else if(v == 0.8)
+    return [c, s, 1, 0, 0, 1, u, v];
+  else if(v == 1)
+    return [0, 0, 1, 0, 0, 1, u, v];
+}
+
+function check(v) {
+  let o = {};
+  if(v == .2) {
+    o.pos = -1;
+    o.nor = -1;
+  }
+  else if(v == .4) {
+    o.pos = -1;
+    o.nor = 0;
+  }
+  else if(v == .6) {
+    o.pos = 1;
+    o.nor = 0;
+  }
+  else if(v == .8) {
+    o.pos = 1;
+    o.nor = 1;
+  }
+  return o;
+}
+
+function cubeVertex(u, v) {
+  let z = check(v);
+  if(v == 0)
+    return [0,0,-1,0,0,-1,u, v];
+  if(v == 1)
+    return [0,0,1,0,0,1,u,v]
+  if(u == 0)
+    return [1, 1, z.pos, 1, 0, z.nor, u, v];
+  else if(u == 0.125)
+    return [1, 1, z.pos, 0, 1, z.nor, u, v];
+  else if(u == 0.25)
+    return [-1, 1, z.pos, 0, 1, z.nor, u, v];
+  else if(u == 0.375)
+    return [-1, 1, z.pos, -1, 0, z.nor, u, v];
+  else if(u == 0.5)
+    return [-1, -1, z.pos, -1, 0, z.nor, u, v];
+  else if(u == 0.625)
+    return [-1, -1, z.pos, 0, -1, z.nor, u, v];
+  else if(u == 0.75)
+    return [1, -1, z.pos, 0, -1, z.nor, u, v];
+  else if(u == 0.875)
+    return [1, -1, z.pos, 1, 0, z.nor, u, v];
+  else if(u == 1)
+    return [1, 1, z.pos, 1, 0, z.nor, u, v];
+}
+
+// RETURNS ONE VERTEX OF A UNIT SPHERE, GIVEN PARAMETRIC u,v
+
+function sphereVertex(u, v) {
+  let theta = 2 * Math.PI * u;
+  let phi   = Math.PI * (v - .5);
+  let x = Math.cos(phi) * Math.cos(theta);
+  let y = Math.cos(phi) * Math.sin(theta);
+  let z = Math.sin(phi);
+  return [x, y, z,  x, y, z,  u, v];
+}
+
+// CREATE A PARAMETRIC SHAPE AS A SINGLE TRIANGLE STRIP
+
+function createParametricShape(func, nu, nv) {
+  let vertices = [];
+  for (let j = 0 ; j < nv ; j++) {
+    let v0 =  j    / nv;
+    let v1 = (j+1) / nv;
+    for (let i = 0 ; i <= nu ; i++) {
+      let u = i / nu;
+      if (j % 2)
+      u = 1 - u;
+      vertices = vertices.concat(func(u, v0));
+      vertices = vertices.concat(func(u, v1));
+    }
+  }
+  return vertices;
+}
+
+var sphereTriangleStrip = createParametricShape(sphereVertex, 30, 10);
+var cylinderTriangleStrip = createParametricShape(cylinderVertex, 30, 5);
+var cubeTriangleStrip = createParametricShape(cubeVertex, 8, 5)
+
+function multiplyMatrices(a, b) {
+  var temp = [];
+  for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            let sum = 0;
+            for (let k = 0; k < 4; k++) {
+                sum = sum + a[i * 4 + k] * b[k * 4 + j];
+            }
+            temp[i * 4 + j] = sum;
+        }
+
+    }
+  return temp;
+}
+
+function animate(gl) {
+   let time = (Date.now() - startTime) / 1000;
+
+   setUniform('1f', 'uTime', time);
+   setUniform('3fv', 'uCursor', cursor);
+
+   var zRange = 10; // DEFINE A RANGE FOR Z VALUES
+   var fl = 3;      // FOCAL LENGTH OF VIRTUAL CAMERA
+
+   // DEFINE THE PERSPECTIVE PROJECTION MATRIX
+
+   setUniform('Matrix4fv', 'uPPMat', false, [
+          1,  0,         0,     0,
+          0,  1,         0,     0,
+          0,  0, -1/zRange, -1/fl,
+          0,  0,         0,     1,
+   ]);
+   class matrix {
+     constructor(){
+       this.stackPointer = 0;
+       this.matrixValues = [];
+       this.matrixValues.push([
+         1,0,0,0,
+         0,1,0,0,
+         0,0,1,0,
+         0,0,0,1,
+       ]);
+     }
+     save() {
+       this.matrixValues[this.stackPointer+1] = this.matrixValues[this.stackPointer];
+       this.stackPointer = this.stackPointer+1;
+     }
+     restore() {
+       this.stackPointer = this.stackPointer-1;
+     }
+     getMatrix(){
+	    return this.matrixValues[this.stackPointer];
+	  }
+     translate(x, y, z) {
+       this.matrixValues[this.stackPointer] = multiplyMatrices(this.matrixValues[this.stackPointer], [
+         1, 0, 0, 0,
+         0, 1, 0, 0,
+         0, 0, 1, 0,
+         x, y, z, 1,
+       ]);
+     }
+     rotateX(angle) {
+       this.matrixValues[this.stackPointer] = multiplyMatrices(this.matrixValues[this.stackPointer], [
+         1, 0, 0, 0,
+         0, Math.cos(angle), -Math.sin(angle), 0,
+         0, Math.sin(angle), Math.cos(angle), 0,
+         0, 0, 0, 1,
+       ]);
+     }
+     rotateY(angle) {
+       this.matrixValues[this.stackPointer] = multiplyMatrices(this.matrixValues[this.stackPointer], [
+         Math.cos(angle), 0, Math.sin(angle), 0,
+         0, 1, 0, 0,
+         -Math.sin(angle), 0, Math.cos(angle), 0,
+         0, 0, 0, 1,
+       ]);
+     }
+     rotateZ(angle) {
+       this.matrixValues[this.stackPointer] = multiplyMatrices(this.matrixValues[this.stackPointer], [
+         Math.cos(angle), -Math.sin(angle), 0, 0,
+         Math.sin(angle), Math.cos(angle), 0, 0,
+         0, 0, 1, 0,
+         0, 0, 0, 1,
+       ]);
+     }
+     scale(x, y, z) {
+       this.matrixValues[this.stackPointer] = multiplyMatrices(this.matrixValues[this.stackPointer], [
+         x, 0, 0, 0,
+         0, y, 0, 0,
+         0, 0, z, 0,
+         0, 0, 0, 1,
+       ]);
+     }
+     place(x,y,z) {
+       this.matrixValues[this.stackPointer] = [
+         1,0,0,0,
+         0,1,0,0,
+         0,0,1,0,
+         x,y,z,1,
+       ];
+     }
+   }
+   const m = new matrix();
+   /*
+   function update(time) {
+     let phase = time;
+
+     //Draw Torso
+     let torsoLength = 0.25;
+     m.save();
+      m.rotateX(Math.PI/2);
+      m.scale(torsoLength, torsoLength, torsoLength);
+      mCylinder();
+     m.restore();
+
+     //Draw Head
+     let headSize = .185;
+     m.save();
+      m.scale(headSize, headSize, headSize);
+      m.translate(0, torsoLength+.085, 0.075);
+      mSphere(1,1,1);
+     m.restore();
+
+     //Draw Eyes
+     let eyeSize = .02;
+     m.save();
+      m.scale(eyeSize, eyeSize, eyeSize);
+      drawEyes();
+     m.restore();
+
+     //Draw Arms
+     let armLength = 0.12;
+     m.save();
+      m.scale(armLength/2, armLength, armLength/2);
+      drawArms();
+     m.restore();
+
+     //Draw legs
+     let legLength = 0.12;
+     m.save();
+      m.scale(legLength, legLength/2, legLength/2);
+      drawLegs();
+     m.restore();
+   }
+
+   function drawEyes() {
+     m.save();
+     m.translate(0.235, 0.38, 0.05);
+     m.rotateY(Math.PI*Math.sin(time)+Math.PI/2);
+     mSphere(0,1,1);
+     m.restore();
+     m.save();
+     m.translate(0.235, 0.38, -0.05);
+     m.rotateY(Math.PI*Math.sin(time)+Math.PI/2);
+     mSphere(0,1,1);
+     m.restore();
+   }
+
+   function drawLegs() {
+     m.rotateZ(Math.PI/2);
+     m.rotateY(Math.PI/2);
+     m.save();
+     m.translate(.085, -.35, .025);
+     mCube();
+     m.restore();
+     m.save();
+     m.translate(-.085, -.35, .025);
+     mCube();
+     m.restore();
+   }
+   function drawArms() {
+     m.rotateZ(Math.PI/2);
+     m.rotateX(Math.PI/2);
+
+     m.save();
+     m.translate(0.35, 0.075, 0.025);
+     m.rotateY(Math.PI*Math.sin(time))
+     mCube();
+     m.restore();
+     m.save();
+     m.translate(-0.35, 0.075, 0.025);
+     m.rotateY(Math.PI*Math.sin(time))
+     mCube();
+     m.restore();
+   }
+   */
+   function mix(a,b,t) {
+     let A = [(1-t)*a[0], (1-t)*a[1], (1-t)*a[2]];
+     let B = [t*b[0], t*b[1], t*b[2]];
+     return [A[0]+B[0], A[1] + B[1], A[2] + B[2]];
+   }
+   let A = [-0.5, -0.5, 1];
+   let B = [0.5, -.5, -0.5];
+   let C = [0.5, .5, 0.5];
+   let D = [-0.5, -0.5, -1];
+
+   function drawBezier() {
+     m.scale(.05,.05,.05);
+     for(let t=0; t<256; t += 4) {
+        let p = mix(
+         mix( mix(A,B,t/256) , mix(B,C,t/256) , t/256),
+         mix( mix(B,C,t/256) , mix(C,D,t/256) , t/256),
+         t/256
+       );
+       console.log(p)
+       m.save()
+       m.scale(Math.abs(p[0])*(array[t]/100),Math.abs(p[1])*(array[t]/100),Math.abs(p[1])*(array[t]/100));
+       m.translate(p[0]*(array[t]/100), p[1]*(array[t]/100), p[1]*(array[t]/100));
+       // m.scale(array[t]/50,array[t]/50,array[t]/50  );
+       // m.translate(p[0]*100, p[1]*100+0.4, p[2]*100);
+       //m.rotateY(time);
+      // m.rotateZ(time*(t/255))
+       mSphere(Math.sin(array[t])*Math.sin(time),(t%4)+0.3,(t%6)-0.1);
+       m.restore();
+
+     }
+   }
+   console.log('10: '+array[10])
+   console.log('50: '+array[50])
+   console.log('100: '+array[100])
+   console.log('150: '+array[150])
+   console.log('200: '+array[200])
+   console.log('210: '+array[210])
+   console.log('225: '+array[225])
+   function mCube() {
+     setBuffer(gl, cubeTriangleStrip);
+     let objMat1 = m.getMatrix();
+     let norMat1 = matrixInvert(objMat1);
+     setUniform('Matrix4fv', 'uObjectMat', false, objMat1);
+     setUniform('Matrix4fv', 'uNormalMat', false, norMat1);
+     setUniform('3fv', 'uRGB', [1,1,1]);
+     drawBuffer(gl);
+   }
+   // GENERATE THE TRIANGLE STRIP FOR A SPHERE
+
+   function mSphere(r, g, b) {
+     setBuffer(gl, sphereTriangleStrip);
+     let objMat1 = m.getMatrix();
+     let norMat1 = matrixInvert(objMat1);
+     setUniform('Matrix4fv', 'uObjectMat', false, objMat1);
+     setUniform('Matrix4fv', 'uNormalMat', false, norMat1);
+     setUniform('3fv', 'uRGB', [r,g,b]);
+     drawBuffer(gl);
+   }
+
+   function mCylinder() {
+     setBuffer(gl, cylinderTriangleStrip);
+     let objMat1 = m.getMatrix();
+     let norMat1 = matrixInvert(objMat1);
+     setUniform('Matrix4fv', 'uObjectMat', false, objMat1);
+     setUniform('Matrix4fv', 'uNormalMat', false, norMat1);
+     setUniform('3fv', 'uRGB', [1,1,1]);
+     drawBuffer(gl);
+   }
+
+   drawBezier();
+
+   //update(Math.sqrt(time));
+
+}
+
+gl_start(canvas1, vs, fs);
+</script>
