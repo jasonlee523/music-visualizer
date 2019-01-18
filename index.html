@@ -5,6 +5,7 @@
 <canvas id='canvas1' width=400 height=400></canvas>
 </center>
 </body>
+<button id='button'<p>Click to play</button>
 
 <script id='my_vertex_shader' type='x-shader/x-vertex'>
    attribute vec3 aPos; // VERTEX ATTRIBUTES: POSITION
@@ -151,6 +152,13 @@ request.onload = function() {
     );
 };
 request.send();
+
+document.querySelector('button').addEventListener('click', function() {
+  context.resume().then(() => {
+    console.log('Playback resumed successfully');
+  });
+});
+
 
 function cylinderVertex(u, v) {
   let theta = 2 * Math.PI * u;
