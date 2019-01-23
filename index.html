@@ -129,7 +129,7 @@ function animate(gl) {
    ]);
    
    const m = new matrix();
-   /*
+   
    function update(time) {
      let phase = time;
 
@@ -211,7 +211,7 @@ function animate(gl) {
      mCube();
      m.restore();
    }
-   */
+   
    function mix(a,b,t) {
      let A = [(1-t)*a[0], (1-t)*a[1], (1-t)*a[2]];
      let B = [t*b[0], t*b[1], t*b[2]];
@@ -235,8 +235,8 @@ function animate(gl) {
        m.translate(p[0]*(array[t]/100), p[1]*(array[t]/100), p[1]*(array[t]/100));
        // m.scale(array[t]/50,array[t]/50,array[t]/50  );
        // m.translate(p[0]*100, p[1]*100+0.4, p[2]*100);
-       //m.rotateY(time);
-      // m.rotateZ(time*(t/255))
+       m.rotateY(time);
+       m.rotateZ(time*(t/255))
        mSphere(Math.sin(array[t])*Math.sin(time),(t%4)+0.3,(t%6)-0.1);
        m.restore();
 
@@ -276,7 +276,7 @@ function animate(gl) {
 
    drawBezier();
 
-   //update(Math.sqrt(time));
+   update(Math.sqrt(time));
 
 }
 
