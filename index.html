@@ -2,6 +2,8 @@
 <script src=audioContext.js></script>
 <script src=transformationMatrix.js></script>
 <script src=3D_Shapes.js></script>
+<script src=beatdetection.js></script>
+
 
 <body bgcolor=black text=white link=white alink=white vlink=white>
 <center>
@@ -113,6 +115,11 @@ function multiplyMatrices(a, b) {
 function animate(gl) {
    let time = (Date.now() - startTime) / 1000;
 
+   var tempoMatch;
+   if(time%(60/finalTempo) <= 0.1) {
+    tempoMatch = true;
+   }
+   else {tempoMatch = false;}
    setUniform('1f', 'uTime', time);
    setUniform('3fv', 'uCursor', cursor);
 
@@ -136,6 +143,7 @@ function animate(gl) {
      //Draw Torso
      let torsoLength = 0.25;
      m.save();
+      m.translate(0,2,0);
       m.rotateX(Math.PI/2);
       m.scale(torsoLength, torsoLength, torsoLength);
       mCylinder();
@@ -144,7 +152,13 @@ function animate(gl) {
      //Draw Head
      let headSize = .185;
      m.save();
-      m.scale(headSize, headSize, headSize);
+      if(tempoMatch) {
+        console.log('tempo match ');
+        m.scale(headSize*1.5, headSize*1.5, headSize*1.5);
+      }
+      else {
+        m.scale(headSize, headSize, headSize);
+      }
       m.translate(0, torsoLength+.085, 0.075);
       mSphere(1,1,1);
      m.restore();
@@ -159,6 +173,10 @@ function animate(gl) {
      //Draw Arms
      let armLength = 0.12;
      m.save();
+      m.translate(3,0,0);
+      m.rotateZ(Math.PI/2);
+     m.rotateX(Math.PI/2);
+     m.rotateY(Math.PI*Math.sin(time))
       m.scale(armLength/2, armLength, armLength/2);
       drawArms();
      m.restore();
@@ -166,6 +184,7 @@ function animate(gl) {
      //Draw legs
      let legLength = 0.12;
      m.save();
+      m.translate(0,0.75,0);
       m.scale(legLength, legLength/2, legLength/2);
       drawLegs();
      m.restore();
@@ -174,12 +193,10 @@ function animate(gl) {
    function drawEyes() {
      m.save();
      m.translate(0.235, 0.38, 0.05);
-     m.rotateY(Math.PI*Math.sin(time)+Math.PI/2);
      mSphere(0,1,1);
      m.restore();
      m.save();
      m.translate(0.235, 0.38, -0.05);
-     m.rotateY(Math.PI*Math.sin(time)+Math.PI/2);
      mSphere(0,1,1);
      m.restore();
    }
@@ -197,17 +214,15 @@ function animate(gl) {
      m.restore();
    }
    function drawArms() {
-     m.rotateZ(Math.PI/2);
-     m.rotateX(Math.PI/2);
 
      m.save();
      m.translate(0.35, 0.075, 0.025);
-     m.rotateY(Math.PI*Math.sin(time))
+     
      mCube();
      m.restore();
      m.save();
      m.translate(-0.35, 0.075, 0.025);
-     m.rotateY(Math.PI*Math.sin(time))
+
      mCube();
      m.restore();
    }
@@ -223,6 +238,7 @@ function animate(gl) {
    let D = [-0.5, -0.5, -1];
 
    function drawBezier() {
+     m.save();
      m.scale(.05,.05,.05);
      for(let t=0; t<256; t += 4) {
         let p = mix(
@@ -239,8 +255,8 @@ function animate(gl) {
        m.rotateZ(time*(t/255))
        mSphere(Math.sin(array[t])*Math.sin(time),(t%4)+0.3,(t%6)-0.1);
        m.restore();
-
      }
+     m.restore();
    }
 
    function mCube() {
